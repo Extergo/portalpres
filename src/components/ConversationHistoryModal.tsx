@@ -61,7 +61,7 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
     }
   };
 
-  // Function to format chat messages
+  // Function to format chat messages with improved styling
   const renderChatMessage = (
     message: Record<string, string>,
     index: number
@@ -69,11 +69,15 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
     const sender = Object.keys(message)[0];
     const content = message[sender];
 
+    // Check if message is from AI/Assistant/Adam/Doctor
     const isAI =
-      sender.toLowerCase() === "ai" || sender.toLowerCase() === "assistant";
+      sender.toLowerCase() === "ai" ||
+      sender.toLowerCase() === "assistant" ||
+      sender.toLowerCase() === "adam" ||
+      sender.toLowerCase() === "doctor";
 
     return (
-      <div key={index} className={`mb-4 ${isAI ? "ml-12" : "mr-12"}`}>
+      <div key={index} className={`mb-4 ${isAI ? "mr-12" : "ml-12"}`}>
         <div
           className={`flex items-start ${
             isAI ? "justify-start" : "justify-end"
@@ -81,7 +85,7 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
         >
           <div
             className={`px-4 py-3 rounded-lg ${
-              isAI ? "bg-gray-100 text-gray-800" : "bg-blue-100 text-blue-800"
+              isAI ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
             }`}
           >
             <div className="font-medium mb-1">{sender}</div>
@@ -101,18 +105,71 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
     // If report is an object, render its fields
     return (
       <div className="space-y-4">
-        {Object.entries(report).map(([key, value], index) => (
-          <div key={index} className="border-b pb-3">
-            <h3 className="font-medium text-gray-900 mb-2 capitalize">
-              {key.replace(/_/g, " ")}
-            </h3>
-            <div className="whitespace-pre-wrap text-gray-700">
-              {typeof value === "string"
-                ? value
-                : JSON.stringify(value, null, 2)}
+        {Object.entries(report).map(([key, value], index) => {
+          // Skip rendering arrays or complex objects directly
+          if (
+            Array.isArray(value) ||
+            (typeof value === "object" &&
+              value !== null &&
+              !Array.isArray(value))
+          ) {
+            if (key === "patient_info") {
+              // Special handling for patient info
+              return (
+                <div key={index} className="border-b pb-3">
+                  <h3 className="font-medium text-gray-900 mb-2 capitalize">
+                    Patient Information
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(value as Record<string, any>).map(
+                      ([infoKey, infoValue]) => (
+                        <div key={infoKey} className="text-gray-700">
+                          <span className="font-medium capitalize">
+                            {infoKey.replace(/_/g, " ")}:{" "}
+                          </span>
+                          {String(infoValue)}
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (
+              key === "prescriptions" ||
+              key === "appointments" ||
+              key === "patientReports"
+            ) {
+              // Skip these as they'll be shown in other parts of the UI
+              return null;
+            }
+
+            return (
+              <div key={index} className="border-b pb-3">
+                <h3 className="font-medium text-gray-900 mb-2 capitalize">
+                  {key.replace(/_/g, " ")}
+                </h3>
+                <div className="text-sm bg-gray-50 p-2 rounded">
+                  <pre className="whitespace-pre-wrap text-gray-700">
+                    {JSON.stringify(value, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div key={index} className="border-b pb-3">
+              <h3 className="font-medium text-gray-900 mb-2 capitalize">
+                {key.replace(/_/g, " ")}
+              </h3>
+              <div className="whitespace-pre-wrap text-gray-700">
+                {String(value)}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };

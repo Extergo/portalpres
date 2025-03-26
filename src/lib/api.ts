@@ -1,8 +1,14 @@
 // src/lib/api.ts
-import { Conversation } from "@/types/types";
+import {
+  Conversation,
+  Patient,
+  Appointment,
+  PatientReport,
+} from "@/types/types";
 
 const API_BASE_URL = "http://localhost:5000"; // Update this with your API URL
 
+// Conversation endpoints
 export async function fetchConversationById(
   id: string
 ): Promise<Conversation | null> {
@@ -60,5 +66,353 @@ export async function saveConversation(
   } catch (error) {
     console.error("Error saving conversation:", error);
     return { success: false, error: "Failed to save conversation" };
+  }
+}
+
+// New functions to handle patients via conversations API
+
+// Extract patient info from conversation
+export function extractPatientFromConversation(
+  conversation: Conversation
+): Patient | null {
+  if (!conversation || !conversation.user_info) {
+    return null;
+  }
+
+  // Extract basic info from the conversation
+  const { user_info, _id, report } = conversation;
+
+  // Try to extract age, gender from report or chat context
+  let age = 0;
+  let gender = "";
+  let notes = "";
+
+  // If we have a structured report, try to extract from there
+  if (report && typeof report === "object") {
+    // Attempt to extract from various possible report structures
+    if (report.patient_info) {
+      age = report.patient_info.age || 0;
+      gender = report.patient_info.gender || "";
+    }
+
+    // Try to extract notes from the report
+    notes = report.summary || report.assessment || "";
+  }
+
+  // If not found in the report, try to search in the chat
+  if ((!age || !gender) && conversation.chat && conversation.chat.length > 0) {
+    // Search for age and gender mentions in the chat
+    const chatText = conversation.chat
+      .map((msg) => Object.values(msg)[0])
+      .join(" ")
+      .toLowerCase();
+
+    // Very basic extraction - in a real app, you'd want more sophisticated NLP
+    const ageMatch = chatText.match(/\b(\d+)\s*(?:years old|yrs|year old)\b/i);
+    if (ageMatch && !age) {
+      age = parseInt(ageMatch[1], 10);
+    }
+
+    // Simple gender detection
+    if (!gender) {
+      if (chatText.includes(" male ") || chatText.includes("i am male")) {
+        gender = "Male";
+      } else if (
+        chatText.includes(" female ") ||
+        chatText.includes("i am female")
+      ) {
+        gender = "Female";
+      }
+    }
+  }
+
+  // Generate a patient ID if none exists
+  const patientId = `PT-${_id.substring(0, 8)}`;
+
+  // Create a patient object from the conversation data
+  const patient: Patient = {
+    id: patientId,
+    name: user_info.name || "Unknown Patient",
+    age: age || 30, // Default age if we couldn't extract it
+    gender: gender || "Unknown",
+    contact: user_info.phone_number || "",
+    email: user_info.email || "",
+    lastVisit: new Date().toISOString().split("T")[0], // Today's date as last visit
+    nextAppointment: "",
+    status: "Active",
+    insuranceProvider: "",
+    policyNumber: "",
+    profileImage: `https://avatars.dicebear.com/api/personas/${
+      user_info.name || patientId
+    }.svg`,
+    notes: notes,
+    conversationId: _id,
+  };
+
+  return patient;
+}
+
+// Convert all conversations to patients
+export async function getAllPatientsFromAPI(): Promise<Patient[]> {
+  try {
+    const conversations = await fetchAllConversations();
+
+    // Filter out conversations without proper user info
+    const validConversations = conversations.filter(
+      (conv) => conv && conv.user_info && conv.user_info.name
+    );
+
+    // Map conversations to patients
+    const patients = validConversations
+      .map(extractPatientFromConversation)
+      .filter((patient): patient is Patient => patient !== null);
+
+    return patients;
+  } catch (error) {
+    console.error("Error loading patients from API:", error);
+    return [];
+  }
+}
+
+// Save patient data by updating the conversation
+export async function savePatientToAPI(patient: Patient): Promise<boolean> {
+  // If there's no conversation ID, we need to create a new conversation
+  if (!patient.conversationId) {
+    // Create a minimal conversation to represent this patient
+    const result = await saveConversation(
+      [{ User: `Initial patient record for ${patient.name}` }],
+      {
+        name: patient.name,
+        email: patient.email,
+        phone_number: patient.contact,
+      },
+      {
+        patient_info: {
+          age: patient.age,
+          gender: patient.gender,
+        },
+        summary: patient.notes || "New patient record",
+      }
+    );
+
+    if (result.success && result.saved) {
+      // Update the patient with the new conversation ID
+      patient.conversationId = result.saved._id;
+      return true;
+    }
+    return false;
+  }
+
+  // If there is a conversation ID, try to fetch and update it
+  const existingConversation = await fetchConversationById(
+    patient.conversationId
+  );
+  if (!existingConversation) {
+    return false;
+  }
+
+  // Update the conversation with the latest patient data
+  const updatedUserInfo = {
+    ...existingConversation.user_info,
+    name: patient.name,
+    email: patient.email,
+    phone_number: patient.contact,
+  };
+
+  // Update or create a report object with patient info
+  const updatedReport = existingConversation.report || {};
+  if (typeof updatedReport === "object") {
+    updatedReport.patient_info = {
+      ...(updatedReport.patient_info || {}),
+      age: patient.age,
+      gender: patient.gender,
+    };
+
+    if (patient.notes) {
+      updatedReport.summary = patient.notes;
+    }
+  }
+
+  // Save the updated conversation
+  const result = await saveConversation(
+    existingConversation.chat,
+    updatedUserInfo,
+    updatedReport
+  );
+
+  return result.success;
+}
+
+// Delete a patient (can't actually delete from MongoDB API, so we'll mark as inactive)
+export async function deletePatientFromAPI(
+  patientId: string,
+  conversationId?: string
+): Promise<boolean> {
+  if (!conversationId) {
+    return false;
+  }
+
+  // We can't actually delete the conversation, but we can update it to mark it as inactive
+  const existingConversation = await fetchConversationById(conversationId);
+  if (!existingConversation) {
+    return false;
+  }
+
+  // Update the report to indicate the patient is inactive/deleted
+  const updatedReport = {
+    ...(existingConversation.report || {}),
+    status: "Inactive",
+    inactiveReason: "Patient record deleted",
+    deletedAt: new Date().toISOString(),
+  };
+
+  // Save the updated conversation
+  const result = await saveConversation(
+    existingConversation.chat,
+    existingConversation.user_info,
+    updatedReport
+  );
+
+  return result.success;
+}
+
+// Functions for appointments would work similarly - stored in conversation report
+export async function saveAppointmentToAPI(
+  appointment: Appointment
+): Promise<boolean> {
+  // Get the patient associated with this appointment
+  const patients = await getAllPatientsFromAPI();
+  const patient = patients.find((p) => p.id === appointment.patientId);
+
+  if (!patient || !patient.conversationId) {
+    return false;
+  }
+
+  // Fetch the existing conversation
+  const conversation = await fetchConversationById(patient.conversationId);
+  if (!conversation) {
+    return false;
+  }
+
+  // Update the report with appointment info
+  const updatedReport = {
+    ...(conversation.report || {}),
+    appointments: [
+      ...((conversation.report?.appointments || []) as Appointment[]),
+      appointment,
+    ],
+  };
+
+  // Save the updated conversation
+  const result = await saveConversation(
+    conversation.chat,
+    conversation.user_info,
+    updatedReport
+  );
+
+  return result.success;
+}
+
+// Get all appointments from the API
+export async function getAllAppointmentsFromAPI(): Promise<Appointment[]> {
+  try {
+    const conversations = await fetchAllConversations();
+
+    // Extract appointments from all conversations
+    const appointments: Appointment[] = [];
+
+    conversations.forEach((conversation) => {
+      if (
+        conversation.report &&
+        conversation.report.appointments &&
+        Array.isArray(conversation.report.appointments)
+      ) {
+        appointments.push(...conversation.report.appointments);
+      }
+    });
+
+    return appointments;
+  } catch (error) {
+    console.error("Error loading appointments from API:", error);
+    return [];
+  }
+}
+
+// Similar function for patient reports
+export async function savePatientReportToAPI(
+  patientId: string,
+  reportContent: string
+): Promise<boolean> {
+  // Get the patient
+  const patients = await getAllPatientsFromAPI();
+  const patient = patients.find((p) => p.id === patientId);
+
+  if (!patient || !patient.conversationId) {
+    return false;
+  }
+
+  // Fetch the existing conversation
+  const conversation = await fetchConversationById(patient.conversationId);
+  if (!conversation) {
+    return false;
+  }
+
+  // Create a new report entry
+  const newReport: PatientReport = {
+    id: `R${Math.floor(Math.random() * 10000)}`,
+    patientId,
+    date: new Date().toISOString(),
+    content: reportContent,
+    createdBy: "Dr. Sarah Miller", // This would come from auth in a real app
+  };
+
+  // Update the report structure
+  const updatedReport = {
+    ...(conversation.report || {}),
+    patientReports: [
+      ...((conversation.report?.patientReports || []) as PatientReport[]),
+      newReport,
+    ],
+    // Also update the main summary/notes
+    summary: reportContent,
+  };
+
+  // Save the updated conversation
+  const result = await saveConversation(
+    conversation.chat,
+    conversation.user_info,
+    updatedReport
+  );
+
+  return result.success;
+}
+
+// Get all patient reports from API
+export async function getPatientReportsFromAPI(
+  patientId: string
+): Promise<PatientReport[]> {
+  try {
+    // Get the patient
+    const patients = await getAllPatientsFromAPI();
+    const patient = patients.find((p) => p.id === patientId);
+
+    if (!patient || !patient.conversationId) {
+      return [];
+    }
+
+    // Fetch the conversation
+    const conversation = await fetchConversationById(patient.conversationId);
+    if (
+      !conversation ||
+      !conversation.report ||
+      !conversation.report.patientReports
+    ) {
+      return [];
+    }
+
+    return conversation.report.patientReports as PatientReport[];
+  } catch (error) {
+    console.error("Error loading patient reports from API:", error);
+    return [];
   }
 }

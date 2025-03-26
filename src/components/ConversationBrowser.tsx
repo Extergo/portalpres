@@ -53,8 +53,7 @@ const ConversationBrowser: React.FC<ConversationBrowserProps> = ({
   const handleLinkConversation = () => {
     if (selectedConversation && selectedPatientId) {
       onLinkConversation(selectedPatientId, selectedConversation._id);
-      // Optional: Close the browser after linking
-      // onClose();
+      // Show success message or visual feedback
     }
   };
 
@@ -181,8 +180,8 @@ const ConversationBrowser: React.FC<ConversationBrowserProps> = ({
                       Date: {formatDate(selectedConversation.timestamp)}
                     </div>
                     <div>
-                      User: {selectedConversation.user_info?.name || "Unknown"}(
-                      {selectedConversation.user_info?.email || "No email"})
+                      User: {selectedConversation.user_info?.name || "Unknown"}{" "}
+                      ({selectedConversation.user_info?.email || "No email"})
                     </div>
                   </div>
                 </div>
@@ -250,20 +249,23 @@ const ConversationBrowser: React.FC<ConversationBrowserProps> = ({
                         .map((msg, idx) => {
                           const sender = Object.keys(msg)[0];
                           const content = msg[sender];
+                          // Check if message is from AI/Assistant/Adam/Doctor
                           const isAI =
                             sender.toLowerCase() === "ai" ||
-                            sender.toLowerCase() === "assistant";
+                            sender.toLowerCase() === "assistant" ||
+                            sender.toLowerCase() === "adam" ||
+                            sender.toLowerCase() === "doctor";
 
                           return (
                             <div
                               key={idx}
-                              className={`mb-3 ${isAI ? "pl-4" : "pr-4"}`}
+                              className={`mb-3 ${isAI ? "mr-8" : "ml-8"}`}
                             >
                               <div
                                 className={`rounded-md p-2 ${
                                   isAI
-                                    ? "bg-blue-50 text-blue-800"
-                                    : "bg-gray-100"
+                                    ? "bg-blue-100 text-blue-800"
+                                    : "bg-green-100 text-green-800"
                                 }`}
                               >
                                 <div className="font-medium text-xs mb-1">
