@@ -7,3 +7,5 @@ export { PatientManagementModal } from "./PatientManagementModal";
 export { default as AppointmentBookingModal } from "./AppointmentBookingModal";
 export { default as PatientReportModal } from "./PatientReportModal";
 export { default as PrescribeMedicationModal } from "./PrescribeMedicationModal";
+export { default as ConversationHistoryModal } from "./ConversationHistoryModal";
+export { default as ConversationBrowser } from "./ConversationBrowser";

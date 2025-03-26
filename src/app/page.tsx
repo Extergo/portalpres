@@ -10,6 +10,7 @@ import {
   Calendar,
   Activity,
   Clock,
+  Database,
 } from "lucide-react";
 
 import {
@@ -25,6 +26,8 @@ import {
 import AppointmentBookingModal from "@/components/AppointmentBookingModal";
 import PatientReportModal from "@/components/PatientReportModal";
 import PrescribeMedicationModal from "@/components/PrescribeMedicationModal";
+import ConversationHistoryModal from "@/components/ConversationHistoryModal";
+import ConversationBrowser from "@/components/ConversationBrowser";
 
 import { Patient, Appointment, PatientReport } from "@/types/types";
 import { patients, appointments, stats as statsData } from "@/data/patients";
@@ -54,6 +57,9 @@ export default function Home() {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [isPrescribeModalOpen, setIsPrescribeModalOpen] = useState(false);
+  const [isConversationModalOpen, setIsConversationModalOpen] = useState(false);
+  const [isConversationBrowserOpen, setIsConversationBrowserOpen] =
+    useState(false);
 
   // Selected entities for modals
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -219,6 +225,24 @@ export default function Home() {
     // or handle the PDF attachment differently
   };
 
+  // Handle viewing conversation history
+  const handleViewConversation = (patient: Patient) => {
+    setSelectedPatient(patient);
+    setIsConversationModalOpen(true);
+  };
+
+  // Handle updating conversation ID
+  const handleUpdateConversationId = (
+    patientId: string,
+    conversationId: string
+  ) => {
+    setPatientsData((prevPatients) =>
+      prevPatients.map((p) =>
+        p.id === patientId ? { ...p, conversationId } : p
+      )
+    );
+  };
+
   // Filter patients based on search term
   const filteredPatients = patientsData.filter(
     (patient) =>
@@ -283,6 +307,24 @@ export default function Home() {
         />
       )}
 
+      {/* Conversation History Modal */}
+      {selectedPatient && (
+        <ConversationHistoryModal
+          isOpen={isConversationModalOpen}
+          onClose={() => setIsConversationModalOpen(false)}
+          patient={selectedPatient}
+          onUpdateConversationId={handleUpdateConversationId}
+        />
+      )}
+
+      {/* Conversation Browser Modal */}
+      <ConversationBrowser
+        isOpen={isConversationBrowserOpen}
+        onClose={() => setIsConversationBrowserOpen(false)}
+        patients={patientsData}
+        onLinkConversation={handleUpdateConversationId}
+      />
+
       {/* Sidebar */}
       <Sidebar />
 
@@ -316,6 +358,13 @@ export default function Home() {
                 Filter
               </button>
               <button
+                onClick={() => setIsConversationBrowserOpen(true)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                Chat Database
+              </button>
+              <button
                 onClick={handleOpenAddPatientModal}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
@@ -345,6 +394,7 @@ export default function Home() {
                           onViewReport={handleViewReport}
                           onEmailResponse={handleEmailResponse}
                           onPrescribeMedication={handlePrescribeMedication}
+                          onViewConversation={handleViewConversation}
                         />
                       </div>
                     ))

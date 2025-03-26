@@ -1,3 +1,4 @@
+// src/components/PatientCard.tsx
 import React, { useState } from "react";
 import {
   Edit,
@@ -6,6 +7,7 @@ import {
   Mail,
   MoreHorizontal,
   Clipboard,
+  MessageSquare,
 } from "lucide-react";
 import { Patient } from "@/types/types";
 
@@ -16,6 +18,7 @@ interface PatientCardProps {
   onViewReport?: (patient: Patient) => void;
   onEmailResponse?: (email: string) => void;
   onPrescribeMedication?: (patient: Patient) => void;
+  onViewConversation?: (patient: Patient) => void; // New prop for conversation history
 }
 
 export const PatientCard: React.FC<PatientCardProps> = ({
@@ -25,6 +28,7 @@ export const PatientCard: React.FC<PatientCardProps> = ({
   onViewReport,
   onEmailResponse,
   onPrescribeMedication,
+  onViewConversation,
 }) => {
   const [showActions, setShowActions] = useState(false);
 
@@ -52,6 +56,12 @@ export const PatientCard: React.FC<PatientCardProps> = ({
     }
   };
 
+  const handleViewConversation = () => {
+    if (onViewConversation) {
+      onViewConversation(patient);
+    }
+  };
+
   return (
     <div className="flex items-center justify-between w-full">
       <div className="flex items-center space-x-4">
@@ -61,7 +71,16 @@ export const PatientCard: React.FC<PatientCardProps> = ({
           className="h-12 w-12 rounded-full object-cover"
         />
         <div>
-          <h3 className="text-sm font-medium text-gray-900">{patient.name}</h3>
+          <div className="flex items-center">
+            <h3 className="text-sm font-medium text-gray-900">
+              {patient.name}
+            </h3>
+            {patient.conversationId && (
+              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-800">
+                Chat Data
+              </span>
+            )}
+          </div>
           <p className="text-sm text-gray-500">
             {patient.age} years old | {patient.gender}
           </p>
@@ -120,6 +139,15 @@ export const PatientCard: React.FC<PatientCardProps> = ({
                 title="Prescribe Medication"
               >
                 <Clipboard className="h-5 w-5" />
+              </button>
+            )}
+            {onViewConversation && (
+              <button
+                onClick={handleViewConversation}
+                className="text-gray-500 hover:text-indigo-600 focus:outline-none p-1 rounded hover:bg-gray-100"
+                title="View Conversation History"
+              >
+                <MessageSquare className="h-5 w-5" />
               </button>
             )}
           </div>
@@ -193,6 +221,18 @@ export const PatientCard: React.FC<PatientCardProps> = ({
                   >
                     <Clipboard className="h-4 w-4 mr-2" />
                     Prescribe Medication
+                  </button>
+                )}
+                {onViewConversation && (
+                  <button
+                    onClick={() => {
+                      handleViewConversation();
+                      setShowActions(false);
+                    }}
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left"
+                  >
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    View Conversation
                   </button>
                 )}
               </div>

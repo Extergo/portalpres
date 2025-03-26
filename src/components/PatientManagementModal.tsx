@@ -24,14 +24,15 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
     age: 0,
     gender: "",
     contact: "",
-    email: "", // Added email field with empty initial value
+    email: "",
     lastVisit: "",
     nextAppointment: "",
     status: "Active",
     insuranceProvider: "",
     policyNumber: "",
     profileImage: "",
-    notes: "", // Added notes field with empty initial value
+    notes: "",
+    conversationId: "", // Added conversation ID field
   });
 
   // Reset or populate form when modal opens/changes
@@ -47,14 +48,15 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
         age: 0,
         gender: "",
         contact: "",
-        email: "", // Added email field
+        email: "",
         lastVisit: new Date().toISOString().split("T")[0],
         nextAppointment: "",
         status: "Active",
         insuranceProvider: "",
         policyNumber: "",
         profileImage: faker.image.avatarGitHub(),
-        notes: "", // Added notes field
+        notes: "",
+        conversationId: "", // Initialize empty conversation ID
       });
     }
   }, [initialPatient, isOpen]);
@@ -261,6 +263,26 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
               onChange={handleChange}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
+          </div>
+          <div>
+            <label
+              htmlFor="conversationId"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Conversation ID
+            </label>
+            <input
+              type="text"
+              id="conversationId"
+              name="conversationId"
+              value={patient.conversationId || ""}
+              onChange={handleChange}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              placeholder="Link to external conversation data"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              This ID links the patient to their conversation history
+            </p>
           </div>
           <div>
             <label
