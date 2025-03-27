@@ -41,9 +41,10 @@ const Sidebar: React.FC = () => {
         </div>
         <div className="p-4 border-t">
           <div className="flex items-center">
+            {/* Use a real avatar image for Dr. Sarah Miller */}
             <img
-              src="/api/placeholder/40/40"
-              alt="Profile"
+              src="https://avatars.dicebear.com/api/personas/dr-sarah-miller.svg"
+              alt="Dr. Sarah Miller"
               className="h-10 w-10 rounded-full"
             />
             <div className="ml-3">

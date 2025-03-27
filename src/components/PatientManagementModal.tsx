@@ -38,14 +38,17 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
   // Reset or populate form when modal opens/changes
   useEffect(() => {
     if (initialPatient) {
-      // If editing an existing patient
-      setPatient(initialPatient);
+      // If editing an existing patient - ensure age is always a number
+      setPatient({
+        ...initialPatient,
+        age: initialPatient.age || 0, // Ensure age is never undefined or NaN
+      });
     } else {
       // If adding a new patient
       setPatient({
         id: `PT-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
         name: "",
-        age: 0,
+        age: 0, // Always start with a valid numeric value
         gender: "",
         contact: "",
         email: "",
@@ -68,10 +71,23 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
     >
   ) => {
     const { name, value } = e.target;
-    setPatient((prev) => ({
-      ...prev,
-      [name]: name === "age" ? parseInt(value, 10) : value,
-    }));
+
+    // Special handling for age to ensure it's always a valid number
+    if (name === "age") {
+      const ageValue = value === "" ? 0 : parseInt(value, 10);
+      // If parseInt returns NaN, use 0 instead
+      const validAge = isNaN(ageValue) ? 0 : ageValue;
+
+      setPatient((prev) => ({
+        ...prev,
+        [name]: validAge,
+      }));
+    } else {
+      setPatient((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   // Handle form submission
@@ -81,7 +97,7 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
     // Basic validation
     if (
       !patient.name ||
-      !patient.age ||
+      patient.age === undefined || // Check for undefined
       !patient.gender ||
       !patient.contact ||
       !patient.email
@@ -98,7 +114,10 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
     }
 
     // Save the patient
-    onSavePatient(patient);
+    onSavePatient({
+      ...patient,
+      age: Number(patient.age) || 0, // Ensure age is a number before saving
+    });
     onClose();
   };
 
@@ -188,8 +207,10 @@ export const PatientManagementModal: React.FC<PatientManagementModalProps> = ({
               type="number"
               id="age"
               name="age"
-              value={patient.age}
+              value={patient.age || 0} // Ensure we always have a valid number
               onChange={handleChange}
+              min="0"
+              max="120"
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               required
             />

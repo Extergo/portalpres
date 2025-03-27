@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Bell } from "lucide-react";
+import { Bell, User } from "lucide-react";
 
 const TopNavigation: React.FC = () => {
   return (
@@ -16,16 +16,20 @@ const TopNavigation: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center">
+            {/* Add more space on the right to avoid NextJS bubble overlap */}
             <button
               type="button"
-              className="p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none"
+              className="p-1 mr-8 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none"
             >
               <Bell className="h-6 w-6" />
             </button>
-            <div className="ml-4 relative flex-shrink-0">
-              <div className="rounded-full h-8 w-8 bg-gray-200 flex items-center justify-center">
-                <span className="text-sm font-medium text-gray-700">SM</span>
-              </div>
+            <div className="relative flex-shrink-0">
+              {/* Use the same avatar for consistency */}
+              <img
+                src="https://avatars.dicebear.com/api/personas/dr-sarah-miller.svg"
+                alt="Dr. Sarah Miller"
+                className="h-10 w-10 rounded-full"
+              />
             </div>
           </div>
         </div>

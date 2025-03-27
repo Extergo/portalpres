@@ -4,6 +4,7 @@ import {
   Patient,
   Appointment,
   PatientReport,
+  ConditionMatch,
 } from "@/types/types";
 
 const API_BASE_URL = "http://localhost:5000"; // Update this with your API URL
@@ -46,7 +47,8 @@ export async function fetchAllConversations(): Promise<Conversation[]> {
 export async function saveConversation(
   chat: Array<Record<string, string>>,
   user_info: { name: string; email: string; phone_number: string },
-  report: any
+  report: any,
+  matches?: Record<string, ConditionMatch>
 ): Promise<{ success: boolean; saved?: Conversation; error?: string }> {
   try {
     const response = await fetch(`${API_BASE_URL}/log`, {
@@ -54,7 +56,7 @@ export async function saveConversation(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ chat, user_info, report }),
+      body: JSON.stringify({ chat, user_info, report, matches }),
     });
 
     if (!response.ok) {
@@ -69,7 +71,55 @@ export async function saveConversation(
   }
 }
 
-// New functions to handle patients via conversations API
+export async function updateConversation(
+  id: string,
+  updates: {
+    chat?: Array<Record<string, string>>;
+    user_info?: { name: string; email: string; phone_number: string };
+    report?: any;
+    matches?: Record<string, ConditionMatch>;
+  }
+): Promise<{ success: boolean; updated?: Conversation; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/log/${id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error updating conversation:", error);
+    return { success: false, error: "Failed to update conversation" };
+  }
+}
+
+export async function deleteConversation(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/log/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Error deleting conversation:", error);
+    return { success: false, error: "Failed to delete conversation" };
+  }
+}
 
 // Extract patient info from conversation
 export function extractPatientFromConversation(
@@ -80,7 +130,7 @@ export function extractPatientFromConversation(
   }
 
   // Extract basic info from the conversation
-  const { user_info, _id, report } = conversation;
+  const { user_info, _id, report, matches } = conversation;
 
   // Try to extract age, gender from report or chat context
   let age = 0;
@@ -178,6 +228,15 @@ export async function getAllPatientsFromAPI(): Promise<Patient[]> {
 export async function savePatientToAPI(patient: Patient): Promise<boolean> {
   // If there's no conversation ID, we need to create a new conversation
   if (!patient.conversationId) {
+    // Create basic condition matches for new patients
+    const matches = {
+      match_1: {
+        cond_name_eng: "Check Required",
+        severity: "Moderate",
+        count: 1,
+      },
+    };
+
     // Create a minimal conversation to represent this patient
     const result = await saveConversation(
       [{ User: `Initial patient record for ${patient.name}` }],
@@ -192,7 +251,8 @@ export async function savePatientToAPI(patient: Patient): Promise<boolean> {
           gender: patient.gender,
         },
         summary: patient.notes || "New patient record",
-      }
+      },
+      matches
     );
 
     if (result.success && result.saved) {
@@ -233,17 +293,21 @@ export async function savePatientToAPI(patient: Patient): Promise<boolean> {
     }
   }
 
+  // Keep the existing matches
+  const updatedMatches = existingConversation.matches;
+
   // Save the updated conversation
-  const result = await saveConversation(
-    existingConversation.chat,
-    updatedUserInfo,
-    updatedReport
-  );
+  const result = await updateConversation(patient.conversationId, {
+    chat: existingConversation.chat,
+    user_info: updatedUserInfo,
+    report: updatedReport,
+    matches: updatedMatches,
+  });
 
   return result.success;
 }
 
-// Delete a patient (can't actually delete from MongoDB API, so we'll mark as inactive)
+// Delete a patient (mark as inactive in API)
 export async function deletePatientFromAPI(
   patientId: string,
   conversationId?: string
@@ -252,27 +316,8 @@ export async function deletePatientFromAPI(
     return false;
   }
 
-  // We can't actually delete the conversation, but we can update it to mark it as inactive
-  const existingConversation = await fetchConversationById(conversationId);
-  if (!existingConversation) {
-    return false;
-  }
-
-  // Update the report to indicate the patient is inactive/deleted
-  const updatedReport = {
-    ...(existingConversation.report || {}),
-    status: "Inactive",
-    inactiveReason: "Patient record deleted",
-    deletedAt: new Date().toISOString(),
-  };
-
-  // Save the updated conversation
-  const result = await saveConversation(
-    existingConversation.chat,
-    existingConversation.user_info,
-    updatedReport
-  );
-
+  // Mark the conversation as inactive
+  const result = await deleteConversation(conversationId);
   return result.success;
 }
 
@@ -304,11 +349,9 @@ export async function saveAppointmentToAPI(
   };
 
   // Save the updated conversation
-  const result = await saveConversation(
-    conversation.chat,
-    conversation.user_info,
-    updatedReport
-  );
+  const result = await updateConversation(patient.conversationId, {
+    report: updatedReport,
+  });
 
   return result.success;
 }
@@ -378,11 +421,9 @@ export async function savePatientReportToAPI(
   };
 
   // Save the updated conversation
-  const result = await saveConversation(
-    conversation.chat,
-    conversation.user_info,
-    updatedReport
-  );
+  const result = await updateConversation(patient.conversationId, {
+    report: updatedReport,
+  });
 
   return result.success;
 }

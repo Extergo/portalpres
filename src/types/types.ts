@@ -13,7 +13,7 @@ export interface Patient {
   policyNumber: string;
   profileImage: string;
   notes?: string;
-  conversationId?: string; // Added conversation ID to link to external API
+  conversationId?: string; // ID link to conversation in MongoDB
 }
 
 export interface Appointment {
@@ -35,7 +35,14 @@ export interface PatientReport {
   createdBy: string;
 }
 
-// New interface for conversation data from the API
+// Define the structure for condition matches
+export interface ConditionMatch {
+  cond_name_eng: string;
+  severity: "High" | "Moderate" | "Low";
+  count: number;
+}
+
+// Interface for conversation data from the API
 export interface Conversation {
   _id: string;
   chat: Array<Record<string, string>>;
@@ -45,5 +52,15 @@ export interface Conversation {
     phone_number: string;
   };
   report: any;
+  // Add matches as a top-level field that may or may not exist
+  matches?: {
+    match_1?: ConditionMatch;
+    match_2?: ConditionMatch;
+    match_3?: ConditionMatch;
+    match_4?: ConditionMatch;
+    match_5?: ConditionMatch;
+    [key: string]: ConditionMatch | undefined;
+  };
   timestamp: string;
+  isActive?: boolean;
 }

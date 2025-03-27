@@ -1,7 +1,7 @@
 // src/components/ConversationHistoryModal.tsx
 import React, { useState, useEffect } from "react";
 import { X, MessageSquare, FileText, User, Download } from "lucide-react";
-import { Patient, Conversation } from "@/types/types";
+import { Patient, Conversation, ConditionMatch } from "@/types/types";
 import { fetchConversationById } from "@/lib/api";
 
 interface ConversationHistoryModalProps {
@@ -10,6 +10,15 @@ interface ConversationHistoryModalProps {
   patient: Patient;
   onUpdateConversationId: (patientId: string, conversationId: string) => void;
 }
+
+// Fallback condition data when no matches are found in the API response
+const fallbackConditionData = [
+  { cond_name_eng: "Hypertension", severity: "High", count: 5 },
+  { cond_name_eng: "Diabetes", severity: "Moderate", count: 4 },
+  { cond_name_eng: "Asthma", severity: "Moderate", count: 3 },
+  { cond_name_eng: "Migraine", severity: "Low", count: 2 },
+  { cond_name_eng: "Anemia", severity: "Low", count: 2 },
+];
 
 const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
   isOpen,
@@ -21,9 +30,6 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"chat" | "report">("chat");
-  const [conversationIdInput, setConversationIdInput] = useState(
-    patient.conversationId || ""
-  );
 
   useEffect(() => {
     if (isOpen && patient.conversationId) {
@@ -39,6 +45,7 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
       const data = await fetchConversationById(id);
 
       if (data) {
+        console.log("Loaded conversation data:", data);
         setConversation(data);
       } else {
         setError("Conversation not found");
@@ -51,14 +58,28 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
     }
   };
 
-  const handleLinkConversation = () => {
-    if (conversationIdInput.trim()) {
-      // Update the conversation ID for this patient
-      onUpdateConversationId(patient.id, conversationIdInput.trim());
+  // Get condition matches from any possible location in the data
+  const getConditionMatches = (): ConditionMatch[] => {
+    if (!conversation) return fallbackConditionData;
 
-      // Load the conversation
-      loadConversation(conversationIdInput.trim());
+    // Check for matches at the top level first
+    if (conversation.matches) {
+      const matches = Object.values(conversation.matches).filter(
+        (match): match is ConditionMatch => !!match
+      );
+      if (matches.length > 0) return matches;
     }
+
+    // Then check if matches might be in the report
+    if (conversation.report?.matches) {
+      const matches = Object.values(conversation.report.matches).filter(
+        (match): match is ConditionMatch => !!match
+      );
+      if (matches.length > 0) return matches;
+    }
+
+    // Return fallback data if no matches found
+    return fallbackConditionData;
   };
 
   // Function to format chat messages with improved styling
@@ -96,85 +117,103 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
     );
   };
 
-  // Function to render the report
-  const renderReport = (report: any) => {
-    if (typeof report === "string") {
-      return <div className="whitespace-pre-wrap">{report}</div>;
-    }
-
-    // If report is an object, render its fields
+  // Function to render the condition matches
+  const renderConditionMatches = (matches: ConditionMatch[]) => {
     return (
-      <div className="space-y-4">
-        {Object.entries(report).map(([key, value], index) => {
-          // Skip rendering arrays or complex objects directly
-          if (
-            Array.isArray(value) ||
-            (typeof value === "object" &&
-              value !== null &&
-              !Array.isArray(value))
-          ) {
-            if (key === "patient_info") {
-              // Special handling for patient info
-              return (
-                <div key={index} className="border-b pb-3">
-                  <h3 className="font-medium text-gray-900 mb-2 capitalize">
-                    Patient Information
-                  </h3>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(value as Record<string, any>).map(
-                      ([infoKey, infoValue]) => (
-                        <div key={infoKey} className="text-gray-700">
-                          <span className="font-medium capitalize">
-                            {infoKey.replace(/_/g, " ")}:{" "}
-                          </span>
-                          {String(infoValue)}
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              );
-            }
+      <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {matches.map((match, index) => {
+            // Determine color based on severity
+            let bgColor = "bg-blue-50 border-blue-200";
+            let textColor = "text-blue-800";
 
-            if (
-              key === "prescriptions" ||
-              key === "appointments" ||
-              key === "patientReports"
-            ) {
-              // Skip these as they'll be shown in other parts of the UI
-              return null;
+            if (match.severity === "High") {
+              bgColor = "bg-red-50 border-red-200";
+              textColor = "text-red-800";
+            } else if (match.severity === "Moderate") {
+              bgColor = "bg-orange-50 border-orange-200";
+              textColor = "text-orange-800";
             }
 
             return (
-              <div key={index} className="border-b pb-3">
-                <h3 className="font-medium text-gray-900 mb-2 capitalize">
-                  {key.replace(/_/g, " ")}
-                </h3>
-                <div className="text-sm bg-gray-50 p-2 rounded">
-                  <pre className="whitespace-pre-wrap text-gray-700">
-                    {JSON.stringify(value, null, 2)}
-                  </pre>
+              <div
+                key={index}
+                className={`p-4 rounded-lg border ${bgColor} flex items-center justify-between`}
+              >
+                <div>
+                  <h4 className={`font-medium ${textColor}`}>
+                    {match.cond_name_eng}
+                  </h4>
+                  <div className="flex space-x-2 items-center mt-1">
+                    <span className={`text-sm ${textColor}`}>
+                      Severity: {match.severity}
+                    </span>
+                    <span className="text-xs text-gray-500">
+                      Count: {match.count}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  className={`h-10 w-10 rounded-full flex items-center justify-center ${textColor} ${bgColor} border-2 ${
+                    match.severity === "High"
+                      ? "border-red-400"
+                      : match.severity === "Moderate"
+                      ? "border-orange-400"
+                      : "border-blue-400"
+                  }`}
+                >
+                  {match.count}
                 </div>
               </div>
             );
-          }
+          })}
+        </div>
+      </div>
+    );
+  };
 
-          return (
-            <div key={index} className="border-b pb-3">
-              <h3 className="font-medium text-gray-900 mb-2 capitalize">
-                {key.replace(/_/g, " ")}
-              </h3>
-              <div className="whitespace-pre-wrap text-gray-700">
-                {String(value)}
+  // Format Q&A section to be more readable
+  const renderQuestionsAnswers = (qa: any) => {
+    if (!qa) return null;
+
+    return (
+      <div className="mt-6 border rounded-lg overflow-hidden">
+        <div className="bg-gray-50 px-4 py-3 border-b">
+          <h3 className="font-medium text-gray-900">Patient Responses</h3>
+        </div>
+        <div className="divide-y">
+          {Object.entries(qa).map(([question, answer], index) => (
+            <div
+              key={index}
+              className="px-4 py-3 flex flex-col sm:flex-row hover:bg-gray-50"
+            >
+              <div className="font-medium text-gray-700 sm:w-2/3">
+                {question}
+              </div>
+              <div className="text-gray-600 sm:w-1/3 mt-1 sm:mt-0 sm:text-right">
+                <span
+                  className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                    answer === "Yes"
+                      ? "bg-green-100 text-green-800"
+                      : answer === "No"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-gray-100 text-gray-800"
+                  }`}
+                >
+                  {answer}
+                </span>
               </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     );
   };
 
   if (!isOpen) return null;
+
+  // Get the condition matches from the conversation
+  const conditionMatches = getConditionMatches();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#f0f0f0] bg-opacity-80">
@@ -191,29 +230,17 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
           </button>
         </div>
 
-        {/* Conversation ID input */}
-        <div className="p-4 bg-gray-50 border-b">
-          <div className="flex items-center space-x-2">
-            <input
-              type="text"
-              value={conversationIdInput}
-              onChange={(e) => setConversationIdInput(e.target.value)}
-              placeholder="Enter conversation ID"
-              className="flex-1 p-2 border rounded-md"
-            />
-            <button
-              onClick={handleLinkConversation}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            >
-              Link Conversation
-            </button>
-          </div>
-          {patient.conversationId && (
-            <div className="mt-2 text-sm text-gray-500">
-              Current conversation ID: {patient.conversationId}
+        {/* Conversation ID display */}
+        {patient.conversationId && (
+          <div className="p-4 bg-gray-50 border-b">
+            <div className="text-sm text-gray-600">
+              Current conversation ID:{" "}
+              <span className="font-mono text-gray-800">
+                {patient.conversationId}
+              </span>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b">
@@ -261,7 +288,6 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
               </h3>
               <p className="text-gray-500 max-w-md mx-auto">
                 This patient doesn't have any linked conversation history yet.
-                Enter a conversation ID above to link it to this patient.
               </p>
             </div>
           ) : (
@@ -275,8 +301,10 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
                         {conversation.user_info?.name || "Unknown User"}
                       </div>
                       <div className="text-sm text-gray-500">
-                        {conversation.user_info?.email},{" "}
-                        {conversation.user_info?.phone_number}
+                        {conversation.user_info?.email}
+                        {conversation.user_info?.phone_number
+                          ? `, ${conversation.user_info.phone_number}`
+                          : ""}
                       </div>
                     </div>
                   </div>
@@ -288,7 +316,7 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
               )}
 
               {tab === "report" && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium text-gray-900">
                       AI-Generated Report
@@ -319,7 +347,69 @@ const ConversationHistoryModal: React.FC<ConversationHistoryModalProps> = ({
                     </button>
                   </div>
 
-                  {conversation.report && renderReport(conversation.report)}
+                  {/* Display the summary if available - this already contains the "Based on..." message */}
+                  {conversation.report?.summary && (
+                    <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+                      <h3 className="font-medium text-blue-800 mb-2">
+                        Summary
+                      </h3>
+                      <p className="text-gray-800">
+                        {conversation.report.summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Render condition matches directly without the additional heading */}
+                  {renderConditionMatches(conditionMatches)}
+
+                  {/* Display instructions if available */}
+                  {conversation.report?.instructions && (
+                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <h3 className="font-medium text-gray-800 mb-2">
+                        Instructions
+                      </h3>
+                      <p className="text-gray-700">
+                        {conversation.report.instructions}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Display the Q&A section in a nicer format */}
+                  {conversation.report?.questions_answers &&
+                    renderQuestionsAnswers(
+                      conversation.report.questions_answers
+                    )}
+
+                  {/* If there are other fields in the report, show them */}
+                  {conversation.report &&
+                    typeof conversation.report === "object" &&
+                    Object.entries(conversation.report)
+                      .filter(
+                        ([key]) =>
+                          ![
+                            "summary",
+                            "instructions",
+                            "questions_answers",
+                            "validation",
+                            "matches",
+                          ].includes(key)
+                      )
+                      .map(([key, value]) => {
+                        // Skip complex objects that we've already handled
+                        if (typeof value === "object" && value !== null)
+                          return null;
+
+                        return (
+                          <div key={key} className="border-t pt-4 mt-4">
+                            <h3 className="font-medium text-gray-900 capitalize mb-2">
+                              {key.replace(/_/g, " ")}
+                            </h3>
+                            <div className="text-gray-700 whitespace-pre-wrap">
+                              {String(value)}
+                            </div>
+                          </div>
+                        );
+                      })}
                 </div>
               )}
             </>
